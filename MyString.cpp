@@ -1,10 +1,5 @@
 #include "MyString.h"
 
-#include <cassert>
-#include <cstdlib>
-#include <cstring>
-#include <exception>
-
 MyString::MyString(const char* rawString) {
 	if (rawString == 0) {
 		this->_size = 0;
@@ -37,18 +32,22 @@ MyString::MyString(MyString&& other) noexcept {
 }
 
 MyString& MyString::operator=(const MyString& other) {
-	this->_size = other.size();
-	delete[] this->_data;
-	this->_data = new char[_size + 1];
-	strcpy(this->_data, other._data);
+	if (this != &other) {
+		this->_size = other.size();
+		delete[] this->_data;
+		this->_data = new char[_size + 1];
+		strcpy(this->_data, other._data);
+	}
 	return *this;
 }
 
 MyString& MyString::operator=(MyString&& other) noexcept{
-	this->_size = other.size();
-	this->_data = other._data;
-	other._size = 0;
-	other._data = nullptr;
+	if (this != &other) {
+		this->_size = other.size();
+		this->_data = other._data;
+		other._size = 0;
+		other._data = nullptr;
+	}
 	return *this;
 }
 
@@ -58,37 +57,31 @@ MyString::~MyString() {
 }
 
 void MyString::append(const MyString& appendedString) {
-	int sizeTmp = this->_size + appendedString._size;
-	char* tmp = new char[sizeTmp + 1];
-	for (int i = 0; i < this->_size; ++i) {
-		tmp[i] = this->_data[i];
-	}
-	for (int i = 0; i < appendedString._size; ++i) {
-		tmp[i + this->_size] = appendedString._data[i];
-	}
-	tmp[sizeTmp] = '\0';
-	delete[] this->_data;
-	this->_data = tmp;
-	this->_size = sizeTmp;
+	this->insert(this->size(), appendedString);
 }
 
 void MyString::insert(unsigned int pos, const MyString& insertedString) {
-	assert(pos <= this->size());
-	int sizeTmp = this->_size + insertedString.size();
-	char* tmp = new char[sizeTmp + 1];
-	for (int i = 0; i < pos; ++i) {
-		tmp[i] = this->_data[i];
+	//assert(pos <= this->size());
+	if (pos <= this->size()) {
+		int sizeTmp = this->_size + insertedString.size();
+		char* tmp = new char[sizeTmp + 1];
+		for (int i = 0; i < pos; ++i) {
+			tmp[i] = this->_data[i];
+		}
+		for (int i = 0; i < insertedString.size(); ++i) {
+			tmp[i + pos] = insertedString._data[i];
+		}
+		for (int i = pos + insertedString.size(); i < sizeTmp; ++i) {
+			tmp[i] = this->_data[i - insertedString.size()];
+		}
+		tmp[sizeTmp] = '\0';
+		delete[] this->_data;
+		this->_data = tmp;
+		this->_size = sizeTmp;
 	}
-	for (int i = 0; i < insertedString.size(); ++i) {
-		tmp[i + pos] = insertedString._data[i];
+	else {
+		throw InsertException(*this, pos);
 	}
-	for (int i = pos + insertedString.size(); i < sizeTmp; ++i) {
-		tmp[i] = this->_data[i - insertedString.size()];
-	}
-	tmp[sizeTmp] = '\0';
-	delete[] this->_data;
-	this->_data = tmp;
-	this->_size = sizeTmp;
 
 }
 
@@ -99,33 +92,47 @@ void MyString::clear() {
 }
 
 void MyString::erase(unsigned int pos, unsigned int count){
-	assert(pos <= this->size());
-	if (count > (this->_size - pos)) {
-		count = this->_size - pos;
+	//assert(pos <= this->size());
+	if (pos <= this->size()) {
+		if (count > (this->_size - pos)) {
+			count = this->_size - pos;
+		}
+		int sizeTmp = this->_size - count;
+		char* tmp = new char[sizeTmp + 1];
+		for (int i = 0; i < pos; ++i) {
+			tmp[i] = this->_data[i];
+		}
+		for (int i = pos; i < sizeTmp; ++i) {
+			tmp[i] = this->_data[count + i];
+		}
+		tmp[sizeTmp] = '\0';
+		delete[] this->_data;
+		this->_data = tmp;
+		this->_size = sizeTmp;
 	}
-	int sizeTmp = this->_size - count;
-	char* tmp = new char[sizeTmp + 1];
-	for (int i = 0; i < pos - 1; ++i) {
-		tmp[i] = this->_data[i];
+	else {
+		throw EraseException(*this, pos);
 	}
-	for (int i = pos - 1; i < sizeTmp; ++i) {
-		tmp[i] = this->_data[count + i];
-	}
-	tmp[sizeTmp] = '\0';
-	delete[] this->_data;
-	this->_data = tmp;
-	this->_size = sizeTmp;
-
 }
 
 char& MyString::at(const unsigned int idx) {
-	assert(idx < size());
-	return _data[idx];
+	//assert(idx < size());
+	if (idx < this->size()) {
+		return _data[idx];
+	}
+	else {
+		throw AtException(*this, idx);
+	}
 }
 
 const char& MyString::at(const unsigned int idx) const {
-	assert(idx < size());
-	return _data[idx];
+	//assert(idx < size());
+	if (idx < this->size()) {
+		return _data[idx];
+	}
+	else {
+		throw AtException(*this, idx);
+	}
 }
 
 unsigned int MyString::size() const {
@@ -137,23 +144,31 @@ bool MyString::isEmpty() const{
 }
 
 const char* MyString::rawString() const {
-	return this->_data;
+	char* res = new char[this->size() + 1];
+	strcpy(res, this->_data);
+	return res;
 }
 
 unsigned int MyString::find(const MyString& substring, const unsigned int pos) {
-	assert(pos <= this->size());
-	int i;
-	for (int i = pos; i < this->size() - substring.size() + 1; i++) {
-		bool flag = true;
-		for (int j = 0; j < substring.size(); j++) {
-			if (this->_data[j + i] != substring._data[j]) {
-				flag = false;
-				break;
+	//assert(pos <= this->size());
+	if (pos <= this->size()) {
+		int i;
+		for (int i = pos; i < this->size() - substring.size() + 1; i++) {
+			bool flag = true;
+			for (int j = 0; j < substring.size(); j++) {
+				if (this->_data[j + i] != substring._data[j]) {
+					flag = false;
+					break;
+				}
+			}
+			if (flag) {
+				return i;
 			}
 		}
-		if (flag) {
-			return ++i;
-		}
+		return -1;
+	}
+	else {
+		throw FindException(*this, pos);
 	}
 }
 
