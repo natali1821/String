@@ -1,4 +1,9 @@
 #pragma once
+#include <cassert>
+#include <cstdlib>
+#include <cstring>
+#include <exception>
+#include "StringExceptions.h"
 
 class MyString
 {
